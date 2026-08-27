@@ -1,0 +1,1734 @@
+{
+  "name": "Leads Construction System",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "New Lead Search Request",
+        "formDescription": "Tell the workflow what kind of leads to find today",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Industry / Niche",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "City",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Country",
+              "defaultValue": "Pakistan",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Extra Keyword (optional)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5ecd1ff8-a29f-4397-b476-9eb2a420cec8",
+      "name": "New Lead Search",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -1872,
+        -224
+      ],
+      "webhookId": "8ee703ac-f9b0-427b-a8cc-b1f9f59de8ec"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "searchQuery",
+              "type": "string",
+              "value": "={{ $json['Industry / Niche'] }} {{ $json['Extra Keyword (optional)'] }} in {{ $json['City'] }}, {{ $json['Country'] }}"
+            },
+            {
+              "name": "city",
+              "type": "string",
+              "value": "={{ $json['City'] }}"
+            },
+            {
+              "name": "country",
+              "type": "string",
+              "value": "={{ $json['Country'] }}"
+            },
+            {
+              "name": "category",
+              "type": "string",
+              "value": "={{ $json['Industry / Niche'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7d1171ce-f874-4331-9f33-2e742174c227",
+      "name": "Build Search Query",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1728,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.geoapify.com/v1/geocode/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.city }}, {{ $json.country }}"
+            },
+            {
+              "name": "apiKey",
+              "value": "YOUR_GEOAPIFY_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b6f87357-71a3-4ef5-b97c-4ae5464b5c85",
+      "name": "Geocode City",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1584,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = ($input.first().json.features || []).slice(0, 20);\n\nreturn results.map(r => {\n  const p = r.properties;\n  return { json: {\n    businessName: p.name || '',\n    phone: p.phone || (p.contact && p.contact.phone) || '',\n    website: p.website || (p.datasource && p.datasource.raw && p.datasource.raw.website) || '',\n    email: p.email || (p.datasource && p.datasource.raw && p.datasource.raw.email) || '',\n    address: p.formatted || '',\n    city: $('Build Search Query').first().json.city,\n    country: $('Build Search Query').first().json.country,\n    category: (p.categories || []).join(', '),\n    place_id: p.place_id,\n    sourceQuery: $('Build Search Query').first().json.searchQuery\n  }};\n});"
+      },
+      "id": "b8892739-6534-47af-9a7d-ecdf07c9cc36",
+      "name": "Extract Top 20 Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1152,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "ec23f5e6-534d-4d2f-be82-0b30bc3e365e",
+      "name": "Loop Places",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -960,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ $json.phone ? '{Phone}=\"' + $json.phone + '\"' : '{Phone}=\"__no_phone_on_file__\"' }}",
+        "options": {}
+      },
+      "id": "f34e883c-053f-40ed-a0ac-6b28a7bc2010",
+      "name": "Check Duplicate Phone",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -752,
+        -208
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1a5b50e-b36b-4c4a-a0a0-e209cc7e95a1",
+              "leftValue": "={{ $json.id }}",
+              "operator": {
+                "operation": "isNotEmpty",
+                "type": "string"
+              },
+              "rightValue": ""
+            },
+            {
+              "id": "12d8aa4d-e9cd-4dfe-ad98-ebcfa32c3c51",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "42f71b53-2d3c-41b7-acda-1c3f46cf71f6",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -592,
+        -208
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cc40030c-036f-4a68-a5a1-1ed52c83448a",
+      "name": "Skip - Already In Airtable",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Business Name": "={{ $('Loop Places').item.json.businessName }}",
+            "Phone": "={{ $('Loop Places').item.json.phone }}",
+            "Website": "={{ $('Loop Places').item.json.website }}",
+            "Address": "={{ $('Loop Places').item.json.address }}",
+            "City": "={{ $('Loop Places').item.json.city }}",
+            "Category": "={{ $('Loop Places').item.json.category }}",
+            "Source Query": "={{ $('Loop Places').item.json.sourceQuery }}",
+            "Status": "New",
+            "Date Added": "={{ $today }}",
+            "Email": "={{ $('Loop Places').item.json.email }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Business Name",
+              "displayName": "Business Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Address",
+              "displayName": "Address",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "LinkedIn URL",
+              "displayName": "LinkedIn URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Decision Maker Name",
+              "displayName": "Decision Maker Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "New",
+                  "value": "New"
+                },
+                {
+                  "name": "Researched",
+                  "value": "Researched"
+                },
+                {
+                  "name": "Contacted",
+                  "value": "Contacted"
+                },
+                {
+                  "name": "Closed",
+                  "value": "Closed"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Research Summary",
+              "displayName": "Research Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Pain Points",
+              "displayName": "Pain Points",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Wasted Time Manual Work",
+              "displayName": "Wasted Time Manual Work",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Competitors",
+              "displayName": "Competitors",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Social Media Links",
+              "displayName": "Social Media Links",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Reviews Summary",
+              "displayName": "Reviews Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Call Status",
+              "displayName": "Call Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Not Called",
+                  "value": "Not Called"
+                },
+                {
+                  "name": "Called",
+                  "value": "Called"
+                },
+                {
+                  "name": "No Answer",
+                  "value": "No Answer"
+                },
+                {
+                  "name": "Voicemail",
+                  "value": "Voicemail"
+                },
+                {
+                  "name": "Interested",
+                  "value": "Interested"
+                },
+                {
+                  "name": "Not Interested",
+                  "value": "Not Interested"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Call Notes",
+              "displayName": "Call Notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email Status",
+              "displayName": "Email Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Not Sent",
+                  "value": "Not Sent"
+                },
+                {
+                  "name": "Sent",
+                  "value": "Sent"
+                },
+                {
+                  "name": "Replied",
+                  "value": "Replied"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Source Query",
+              "displayName": "Source Query",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Date Added",
+              "displayName": "Date Added",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Date Researched",
+              "displayName": "Date Researched",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Date Contacted",
+              "displayName": "Date Contacted",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "398a63db-198d-4d1d-a918-fc3a4d94a798",
+      "name": "Add New Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -384,
+        -224
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "1bf11b53-45d6-4d10-aeda-b45940346aed",
+      "name": "Daily Research Run",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1888,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "={Status}=\"New\"",
+        "options": {}
+      },
+      "id": "60712551-d52d-49a3-a421-d48c3450b9b3",
+      "name": "Get New Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -1744,
+        80
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "ef80a226-f210-470d-bf7a-dadd0f118163",
+      "name": "Loop Leads - Research",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1584,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a B2B research agent for an n8n automation consultancy based in Pakistan.\nLead to research:\nBusiness Name: {{ $json['Business Name'] }}\nCategory: {{ $json['Category'] }}\nCity: {{ $json['City'] }}\nWebsite: {{ $json['Website'] }}\nAddress: {{ $json['Address'] }}\n\nUse your tools to research this specific business (and its industry generally if the site has little info). Find:\n1. Social media links you can find (Facebook/Instagram/LinkedIn/etc.)\n2. A short reviews summary (star rating / common complaints or praise if findable)\n3. 2-3 likely competitors in the same city/category\n4. Likely decision-maker or owner name if publicly listed\n5. A public contact email if one is listed anywhere (else leave blank)\n6. pain_points: business-specific pain points you can infer or find evidence of\n7. wasted_time_manual_work: the MOST common repetitive, manual, time-wasting task businesses in THIS industry typically do by hand (e.g. manual booking confirmations, manually replying to the same FAQs, manual invoice entry, manually posting daily menu/specials, manual lead follow-up) — this is the automation-pitch angle, be specific to the industry.\n\nRespond with ONLY valid JSON, no markdown fences, no commentary, in exactly this shape:\n{\"research_summary\":\"\",\"pain_points\":\"\",\"wasted_time_manual_work\":\"\",\"competitors\":\"\",\"social_media_links\":\"\",\"reviews_summary\":\"\",\"decision_maker_name\":\"\",\"contact_email\":\"\"}",
+        "options": {
+          "systemMessage": "Output ONLY raw JSON. Never wrap in markdown code fences. Never invent facts you could not plausibly find; if unsure leave the field blank rather than guessing.\nuse Perplexity for summarized answers about reviews/reputation\" vs \"use Tavily only to find raw pages like LinkedIn profiles or staff pages"
+        }
+      },
+      "id": "a0dfd155-d3dd-49f8-9544-539264bb6708",
+      "name": "Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -1232,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let raw = $input.first().json.output || $input.first().json.text || '';\nraw = raw.replace(/```json|```/g, '').trim();\nlet data = {};\ntry { data = JSON.parse(raw); } catch (e) { data = { research_summary: raw }; }\nreturn [{ json: { ...data, recordId: $('Loop Leads - Research').first().json.id } }];"
+      },
+      "id": "107490db-06c4-4c2c-b86e-afc0166ba69d",
+      "name": "Parse Agent Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -928,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.recordId }}",
+            "Status": "Researched",
+            "Research Summary": "={{ $json.research_summary }}",
+            "Pain Points": "={{ $json.pain_points }}",
+            "Wasted Time Manual Work": "={{ $json.wasted_time_manual_work }}",
+            "Competitors": "={{ $json.competitors }}",
+            "Social Media Links": "={{ $json.social_media_links }}",
+            "Reviews Summary": "={{ $json.reviews_summary }}",
+            "Decision Maker Name": "={{ $json.decision_maker_name }}",
+            "Email": "={{ $json.contact_email }}",
+            "Date Researched": "={{ $today }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "29c18b0c-a9bf-48b8-a030-bbbd86bd3ff2",
+      "name": "Save Research to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -736,
+        96
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "30fcf14e-c40f-43c6-8a89-bd97e6beee6d",
+      "name": "Daily Outreach Run",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1920,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "={Status}=\"Researched\"",
+        "options": {}
+      },
+      "id": "052a4fea-8925-4340-8a25-d69528f9d380",
+      "name": "Get Researched Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -1744,
+        736
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "7c28634a-d828-4d3e-8384-d622f7c2acfe",
+      "name": "Loop Leads - Outreach",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1552,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const idx = $('Loop Leads - Outreach').context.currentRunIndex || 0;\nreturn [{ json: { ...$json, delayMinutes: idx === 0 ? 0 : 15 } }];"
+      },
+      "id": "e3a742d7-daba-4ebe-b674-8d73476a0650",
+      "name": "Compute Stagger Delay",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1168,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.delayMinutes }}",
+        "unit": "minutes"
+      },
+      "id": "fbf28953-5c67-4221-be20-3c5448f42f94",
+      "name": "Wait 30 Min Between Calls",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -976,
+        576
+      ],
+      "webhookId": "4e572a21-a6df-4d5c-a78e-15b294068abf"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Loop Leads - Outreach').item.json.id }}",
+            "Call Status": "Called",
+            "Date Contacted": "={{ $today }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "5d16e5f8-c215-4670-8cf8-1705f4975222",
+      "name": "Log Call Sent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -640,
+        576
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a short, professional cold outreach email (not spammy) to {{ $json['Business Name'] }} ({{ $json['Category'] }} business in {{ $json['City'] }}).\nDecision maker (if known): {{ $json['Decision Maker Name'] }}\nTheir likely wasted-time manual work: {{ $json['Wasted Time Manual Work'] }}\nPain points: {{ $json['Pain Points'] }}\nResearch notes: {{ $json['Research Summary'] }}\n\nThe email must: name the specific manual/repetitive task costing them time, briefly show you understand their business, then pitch my workflow automation as the fix (no fluffy buzzwords), and end with a soft CTA (15-min call). Keep it under 180 words, sound human, no markdown.\nRespond with ONLY valid JSON, no code fences: {\"subject\":\"\",\"body\":\"\"}\nand write in at the end of mail that if you want to see my work this email and your work and industry detail are all research and analyize by my agents which i can build and intergrade for you",
+        "needsFallback": true
+      },
+      "id": "9f13251f-849b-4e57-897f-6efd6430040b",
+      "name": "Draft Cold Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        -1344,
+        912
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 4000
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Loop Leads - Outreach').item.json.Email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "beeeae1a-1ad3-46bf-91d1-5383f1f11d07",
+      "name": "Send Cold Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -640,
+        912
+      ],
+      "webhookId": "ee91028d-f88d-43cc-b8d7-1e8e8b646355",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Loop Leads - Outreach').item.json.id }}",
+            "Email Status": "Sent",
+            "Date Contacted": "={{ $today }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "2b2e8de8-0f8f-4f39-80c9-869c6ec7fe81",
+      "name": "Log Email Sent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -496,
+        912
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "f9eeb322-7999-492a-b724-87cdbb38b3a6",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -288,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "\"Search the web via Perplexity for up-to-date public info about a business — reviews, news, social media, competitors.\"",
+        "messages": {
+          "message": [
+            {
+              "content": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('message0_Text', ``, 'string') }}"
+            }
+          ]
+        },
+        "simplify": true,
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexityTool",
+      "typeVersion": 2,
+      "position": [
+        -1152,
+        352
+      ],
+      "id": "7a340d23-1bfa-4a48-beda-917da3e36fc4",
+      "name": "Message a model in Perplexity",
+      "credentials": {
+        "perplexityApi": {
+          "id": "YOUR_PERPLEXITY_CREDENTIAL_ID",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "\"General web search for anything Perplexity might miss — company site content, LinkedIn presence, decision-maker names, competitor names.\"",
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {
+          "topic": "general",
+          "max_results": 5,
+          "include_domains": [
+            "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('include_domains0_Include_Domains', ``, 'string') }}"
+          ]
+        }
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        352
+      ],
+      "id": "8c0b1c54-f635-4548-a2ea-d8eb6adc9016",
+      "name": "Search in Tavily",
+      "credentials": {
+        "tavilyApi": {
+          "id": "YOUR_TAVILY_CREDENTIAL_ID",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const map = {\n  \"it service\": \"commercial\",\n  \"bakery\": \"commercial.bakery\",\n  \"restaurant\": \"catering.restaurant\",\n  \"gym\": \"sport.fitness\",\n  \"clinic\": \"healthcare.clinic_or_praxis\",\n  \"salon\": \"service.beauty\"\n};\n\nconst industry = $('Build Search Query').first().json.category.toLowerCase();\nconst category = map[industry] || \"commercial\";\n\nreturn [{\n  json: {\n    category: category,\n    lon: $input.first().json.features[0].properties.lon,\n    lat: $input.first().json.features[0].properties.lat\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1440,
+        -224
+      ],
+      "id": "0993f09e-75a0-4606-8a61-41fe3332fcd0",
+      "name": "Map Industry to Category"
+    },
+    {
+      "parameters": {
+        "url": "https://api.geoapify.com/v2/places",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "categories",
+              "value": "={{ $json.category }}"
+            },
+            {
+              "name": "filter",
+              "value": "=circle:{{ $json.lon }},{{ $json.lat }},5000"
+            },
+            {
+              "name": "apiKey",
+              "value": "YOUR_GEOAPIFY_API_KEY"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1296,
+        -224
+      ],
+      "id": "25e72e5b-d8e5-40ff-aefa-27d5e623c480",
+      "name": "Geoapify Places Search"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -1312,
+        352
+      ],
+      "id": "74d85f7b-7008-4316-a770-9cb7e8a3be5e",
+      "name": "Groq Chat Model",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000,
+      "credentials": {
+        "groqApi": {
+          "id": "YOUR_GROQ_CREDENTIAL_ID",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -1440,
+        1136
+      ],
+      "id": "bb4d0c31-22e3-43b0-b547-b664205482cc",
+      "name": "Groq Chat Model1",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000,
+      "credentials": {
+        "groqApi": {
+          "id": "YOUR_GROQ_CREDENTIAL_ID",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "881be35a-c99e-428c-9c8e-ee06dbcaf8ed",
+      "name": "Wait Between Research Calls",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1392,
+        96
+      ],
+      "webhookId": "cedb3658-88e6-40d3-9e0a-f87d67cc5b93"
+    },
+    {
+      "parameters": {
+        "model": "magistral-small-latest",
+        "options": {}
+      },
+      "id": "ebde71ab-5023-437a-9a9b-51092cc70d10",
+      "name": "Mistral Fallback Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        -1456,
+        352
+      ],
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "YOUR_MISTRAL_CREDENTIAL_ID",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "magistral-small-latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        1136
+      ],
+      "id": "6a24ae80-ab8d-493b-8307-37bf581ac91e",
+      "name": "Mistral Cloud Chat Model",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "YOUR_MISTRAL_CREDENTIAL_ID",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer YOUR_VAPI_API_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phoneNumberId\": \"YOUR_VAPI_PHONE_NUMBER_ID\",\n  \"customer\": { \"number\": \"+1 XXX-XXX-XXXX\", \"name\": \"{{ $json['Business Name'] }}\" },\n  \"assistant\": {\n    \"name\": \"Automation Pitch Agent\",\n    \"firstMessage\": \"Hi, is this {{ $json['Decision Maker Name'] || $json['Business Name'] }}? I'm calling about {{ $json['Business Name'] }} — got 30 seconds?\",\n    \"model\": {\n      \"provider\": \"groq\",\n      \"model\": \"llama-3.3-70b-versatile\",\n      \"systemPrompt\": \"You are a friendly, concise cold-outreach voice agent for an n8n workflow automation consultancy. You are calling {{ $json['Business Name'] }} ({{ $json['Category'] }}). Research on this lead: {{ $json['Research Summary'] }}. Their likely wasted-time manual work: {{ $json['Wasted Time Manual Work'] }}. Pain points: {{ $json['Pain Points'] }}. Open by naming the specific manual/repetitive task their industry usually struggles with, explain in one sentence how automation removes it, and offer a free 15-min call. Be brief, natural, not salesy. If they say not interested, thank them and end the call politely.\"\n    },\n    \"voice\": { \"provider\": \"11labs\", \"voiceId\": \"Q0Et7LOU7VpeoeCRQAVS\" }\n  }\n}",
+        "options": {}
+      },
+      "id": "0f3c194c-2e37-43fe-bad3-ab697a9dfd33",
+      "name": "Vapi Outbound Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -800,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first()?.json ?? {};\n\nlet raw = input.text || input.output || '';\n\nraw = String(raw)\n  .replace(/^```json\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\nlet data;\n\ntry {\n  data = JSON.parse(raw);\n} catch (e) {\n  const leadName = input['Business Name'] || 'there';\n\n  data = {\n    subject: `Quick question about ${leadName}`,\n    body: raw\n  };\n}\n\nreturn [\n  {\n    json: data\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1088,
+        912
+      ],
+      "id": "b68b5cb1-8b0d-4f49-8d70-3a0441d45cab",
+      "name": "sepration"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.delayMinutes }}",
+        "unit": "minutes"
+      },
+      "id": "d39dba51-3340-45e1-9056-7d2a7119f70b",
+      "name": "waits",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -784,
+        912
+      ],
+      "webhookId": "54ab4a70-78e4-4335-90de-600c3bedc362"
+    },
+    {
+      "parameters": {
+        "jsCode": "const idx = $('Loop Leads - Outreach').context.currentRunIndex || 0;\nreturn [{ json: { ...$json, delayMinutes: idx === 0 ? 0 : 15 } }];"
+      },
+      "id": "7f77a137-1994-4c54-a8a3-f6c16a9ef33f",
+      "name": "loop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -928,
+        912
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New Lead Search": {
+      "main": [
+        [
+          {
+            "node": "Build Search Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Search Query": {
+      "main": [
+        [
+          {
+            "node": "Geocode City",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Top 20 Results": {
+      "main": [
+        [
+          {
+            "node": "Loop Places",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Phone": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Skip - Already In Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip - Already In Airtable": {
+      "main": [
+        [
+          {
+            "node": "Loop Places",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add New Lead": {
+      "main": [
+        [
+          {
+            "node": "Loop Places",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Research Run": {
+      "main": [
+        [
+          {
+            "node": "Get New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Leads": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads - Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Save Research to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Research to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads - Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Outreach Run": {
+      "main": [
+        [
+          {
+            "node": "Get Researched Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Researched Leads": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads - Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Leads - Outreach": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Compute Stagger Delay",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Draft Cold Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Stagger Delay": {
+      "main": [
+        [
+          {
+            "node": "Wait 30 Min Between Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30 Min Between Calls": {
+      "main": [
+        [
+          {
+            "node": "Vapi Outbound Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Call Sent": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Cold Email": {
+      "main": [
+        [
+          {
+            "node": "sepration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cold Email": {
+      "main": [
+        [
+          {
+            "node": "Log Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Email Sent": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Branches": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads - Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model in Perplexity": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Places": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Check Duplicate Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geocode City": {
+      "main": [
+        [
+          {
+            "node": "Map Industry to Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Industry to Category": {
+      "main": [
+        [
+          {
+            "node": "Geoapify Places Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geoapify Places Search": {
+      "main": [
+        [
+          {
+            "node": "Extract Top 20 Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft Cold Email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Leads - Research": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Wait Between Research Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Between Research Calls": {
+      "main": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Fallback Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft Cold Email",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Vapi Outbound Call": {
+      "main": [
+        [
+          {
+            "node": "Log Call Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sepration": {
+      "main": [
+        [
+          {
+            "node": "loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "waits": {
+      "main": [
+        [
+          {
+            "node": "Send Cold Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "loop": {
+      "main": [
+        [
+          {
+            "node": "waits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "955c2c4f-c7a5-4544-b054-0026b78eece2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "nodeGroups": [],
+  "id": "W5DJixmEn0X74LBV",
+  "tags": [
+    {
+      "updatedAt": "2026-07-23T11:51:11.354Z",
+      "createdAt": "2026-07-23T11:51:11.354Z",
+      "id": "89QfecZrTgLbw58L",
+      "name": "lead-gen"
+    },
+    {
+      "updatedAt": "2026-08-13T15:27:10.476Z",
+      "createdAt": "2026-08-13T15:27:10.476Z",
+      "id": "KD2sNN87ZjcvJ3ch",
+      "name": "call agent"
+    },
+    {
+      "updatedAt": "2026-08-13T15:27:18.931Z",
+      "createdAt": "2026-08-13T15:27:18.931Z",
+      "id": "tb3sE3UaNLIJIsWe",
+      "name": "research"
+    }
+  ]
+}
